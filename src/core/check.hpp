@@ -7,7 +7,7 @@
 
 namespace clerk {
     [[noreturn]] inline void fail(std::string_view what, std::source_location at = std::source_location::current()) {
-        spdlog::critical("Invariant failed: {}, {}:{}, {}", what, at.file_name(), at.line());
+        spdlog::critical("Invariant failed: {} ({}:{})", what, at.file_name(), at.line());
         spdlog::shutdown();
         std::abort();
     }
