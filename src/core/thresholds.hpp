@@ -26,4 +26,7 @@ namespace clerk::thresholds {
 
     // merge clusters while their average link probability is at least this
     inline constexpr float kGroupLink = 0.5f;
+
+    // "Keep best quality" marks a file for the Trash only when at least this much sure
+    inline constexpr float kAutoTrash = 0.9f;
 } // namespace clerk::thresholds
