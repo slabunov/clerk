@@ -3,7 +3,6 @@
 #include "core/check.hpp"
 
 #include <array>
-#include <cstdint>
 #include <filesystem>
 #include <string_view>
 #include <utility>
@@ -42,17 +41,17 @@ namespace clerk {
         Video
     };
 
-    constexpr std::string_view name(Level v) {
+    constexpr std::string_view name(const Level v) {
         return std::array{"Exact", "Similar", "Related"}
                 [std::to_underlying(v)];
     }
 
-    constexpr std::string_view name(Kind v) {
+    constexpr std::string_view name(const Kind v) {
         return std::array{"SameFile", "SamePixels", "Reencoded", "Resized", "Cropped", "SameMoment", "SameScene"}
                 [std::to_underlying(v)];
     }
 
-    constexpr std::string_view name(Criterion v) {
+    constexpr std::string_view name(const Criterion v) {
         return std::array{"FileBytes", "Pixels", "PixelDelta", "FeaturePrint", "BackgroundColour", "Person"}
                 [std::to_underlying(v)];
     }
@@ -64,11 +63,11 @@ namespace clerk {
     };
 
     struct Probability {
-        explicit Probability(float v) : value{v} {
+        explicit Probability(const float v) : value{v} {
             CLERK_ASSERT(v >= 0.f && v <= 1.f);
         }
 
-        Probability(double) = delete("use float in [0, 1]");
+        explicit Probability(double) = delete("use float in [0, 1]");
 
         float value;
     };
@@ -137,7 +136,7 @@ namespace clerk {
     struct Group {
         Level                level;
         std::vector<MediaId> members;
-        MediaId              reference;
+        MediaId              reference; // best quality member in the group is the reference for others
         std::vector<Match>   edges;
     };
 } // namespace clerk
