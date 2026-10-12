@@ -42,7 +42,7 @@ namespace clerk {
             float                 logOdds;
             std::vector<Evidence> evidence;
 
-            void add(Criterion c, float x, thresholds::Term t) {
+            void add(const Criterion c, const float x, const thresholds::Term t) {
                 if (std::isnan(x)) {
                     return;
                 }
@@ -73,7 +73,7 @@ namespace clerk {
             return a.width != b.width ? Kind::Resized : Kind::SameMoment;
         }
 
-        std::size_t pairIndex(std::size_t i, std::size_t j, std::size_t n) {
+        std::size_t pairIndex(const std::size_t i, const std::size_t j, const std::size_t n) {
             // i < j
             return i * n - i * (i + 1) / 2 + (j - i - 1);
         }
@@ -81,7 +81,7 @@ namespace clerk {
         using Cluster = std::vector<std::uint32_t>;
     } // namespace
 
-    Metrics measure(const Media &a, const Media &b, float psnr) {
+    Metrics measure(const Media &a, const Media &b, const float psnr) {
         return {
             .sameFile = a.fileHash == b.fileHash,
             .samePixels = a.type == MediaType::Image && b.type == MediaType::Image && a.pixelHash == b.pixelHash,
@@ -101,7 +101,7 @@ namespace clerk {
     Assessment assess(const Media &a, const Media &b, const Metrics &m) {
         namespace t = thresholds;
         Score exact{.logOdds = -std::numeric_limits<float>::infinity(), .evidence = {}};
-        Kind  exactKind = Kind::Reencoded;
+        auto  exactKind = Kind::Reencoded;
 
         if (m.sameFile || m.samePixels) {
             exactKind = m.sameFile ? Kind::SameFile : Kind::SamePixels;
@@ -144,12 +144,24 @@ namespace clerk {
         return std::nullopt;
     }
 
-    Match Assessment::at(Level level) const {
+    Match Assessment::at(const Level level) const {
         const auto i = std::to_underlying(level);
         return {
             .a = a, .b = b, .level = level, .kind = kind[i], .confidence = Probability{atLeast[i]},
             .evidence = evidence[i]
         };
+    }
+
+    std::vector<Assessment> assessAll(const std::span<const Media> media, const PsnrTable &psnr) {
+        std::vector<Assessment> pairs;
+        pairs.reserve(media.size() * (media.size() - 1) / 2);
+        for (std::uint32_t i = 0; i < media.size(); ++i)
+            for (std::uint32_t j = i + 1; j < media.size(); ++j) {
+                const auto  it = psnr.find({i, j});
+                const float db = it == psnr.end() ? std::numeric_limits<float>::quiet_NaN() : it->second;
+                pairs.push_back(assess(media[i], media[j], measure(media[i], media[j], db)));
+            }
+        return pairs;
     }
 
     Groups group(std::span<const Media> media, std::span<const Assessment> pairs) {
@@ -158,14 +170,14 @@ namespace clerk {
         for (std::size_t i = 0; i < n; ++i)
             CLERK_ASSERT(media[i].id.value == i);
 
-        const auto pair = [&](std::uint32_t i, std::uint32_t j) -> const Assessment & {
+        const auto pair = [&](const std::uint32_t i, const std::uint32_t j) -> const Assessment & {
             return pairs[i < j ? pairIndex(i, j, n) : pairIndex(j, i, n)];
         };
-        const auto p = [&](Level level, std::uint32_t i, std::uint32_t j) {
+        const auto p = [&](const Level level, const std::uint32_t i, const std::uint32_t j) {
             return pair(i, j).atLeast[std::to_underlying(level)];
         };
 
-        const auto merge = [&](std::vector<Cluster> clusters, Level level) {
+        const auto merge = [&](std::vector<Cluster> clusters, const Level level) {
             const bool single = level == Level::Exact;
             for (;;) {
                 float       best = -1;
@@ -174,8 +186,8 @@ namespace clerk {
                     for (std::size_t j = i + 1; j < clusters.size(); ++j) {
                         float sum = 0, max = 0;
 
-                        for (auto x: clusters[i])
-                            for (auto y: clusters[j]) {
+                        for (const auto x: clusters[i])
+                            for (const auto y: clusters[j]) {
                                 sum += p(level, x, y);
                                 max = std::max(max, p(level, x, y));
                             }
@@ -196,7 +208,7 @@ namespace clerk {
             }
         };
 
-        const auto toGroups = [&](const std::vector<Cluster> &clusters, Level level) {
+        const auto toGroups = [&](const std::vector<Cluster> &clusters, const Level level) {
             std::vector<Group> groups;
             for (const Cluster &c: clusters) {
                 if (c.size() < 2) {
@@ -207,30 +219,34 @@ namespace clerk {
                     return media[i].pixelHash == media[c[0]].pixelHash;
                 });
 
-                const auto better = [&](std::uint32_t x, std::uint32_t y) {
+                const auto better = [&](const std::uint32_t x, const std::uint32_t y) {
                     if (samePixels) return media[y].stamp.bytes < media[x].stamp.bytes;
                     return media[y].quality.score() > media[x].quality.score();
                 };
 
                 std::uint32_t ref = c[0];
-                for (auto i: c)
+                for (const auto i: c)
                     if (better(ref, i)) {
                         ref = i;
                     }
 
                 Group g{.level = level, .members = {}, .reference = MediaId{ref}, .edges = {}};
-                for (auto i: c) {
+                for (const auto i: c) {
                     g.members.push_back(MediaId{i});
                     if (i == ref) {
                         continue;
                     }
 
                     std::uint32_t to = ref;
-                    for (auto j: c)
+                    for (const auto j: c)
                         if (j != i && p(level, i, to) < 0.5f && p(level, i, j) > p(level, i, to)) {
                             to = j;
                         }
-                    g.edges.push_back(pair(i, to).at(level));
+                    Match edge = pair(i, to).at(level);
+                    if (edge.a.value != i) {
+                        std::swap(edge.a, edge.b);
+                    }
+                    g.edges.push_back(std::move(edge));
                 }
                 groups.push_back(std::move(g));
             }
