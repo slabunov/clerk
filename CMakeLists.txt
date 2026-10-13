@@ -33,7 +33,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(clerk MACOSX_BUNDLE src/app/main.cpp src/app/session.cpp src/app/session.hpp)
-set_target_properties(clerk PROPERTIES MACOSX_BUNDLE_BUNDLE_NAME Clerk) # name in the menu bar; keep the file name = target name, CLion runs by target name
+set_target_properties(clerk PROPERTIES MACOSX_BUNDLE_BUNDLE_NAME Clerk)
 qt_add_qml_module(clerk URI Clerk QML_FILES
         src/app/qml/Main.qml src/app/qml/ScanView.qml src/app/qml/ResultsView.qml src/app/qml/Inspector.qml)
 target_include_directories(clerk PRIVATE src/app)
